@@ -1,0 +1,181 @@
+---
+title: "Lab2"
+output: html_document
+---
+
+```{r, echo = T, message = F, warning = F}
+# Загрузка пакетов
+library('data.table')       
+library('moments')             
+library('lattice')
+library('ggplot2')
+```
+необходимо построить
+один и тот же график средствами «base», «lattice» и «ggplot2» и сохранить в формат png.
+Результат выполнения упражнения – скрипт с расширением .Rmd с кодом на языке
+RMarkdown, который описывает все этапы построения графика, от загрузки данных до
+записи графика, а также три графических файла.
+ Все графики строятся на данных по импорту сливочного масла в РФ. Нас интересует
+эффект от введения продовольственных санкций  
+Загрузим данные.
+```{r, echo = T, message = F, warning = F}
+# загружаем файл с данными по импорту масла в РФ (из прошлой практики)
+fileURL <- 'https://raw.githubusercontent.com/aksyuk/R-data/master/COMTRADE/040510-Imp-RF-comtrade.csv'
+# создаём директорию для данных, если она ещё не существует:
+if (!file.exists('./data')) {
+  dir.create('./data')
+}
+# создаём файл с логом загрузок, если он ещё не существует:
+if (!file.exists('./data/download.log')) {
+  file.create('./data/download.log')
+}
+# загружаем файл, если он ещё не существует,
+#  и делаем запись о загрузке в лог:
+if (!file.exists('./data/040510-Imp-RF-comtrade.csv')) {
+  download.file(fileURL, './data/040510-Imp-RF-comtrade.csv')
+  # сделать запись в лог
+  write(paste('Файл "040510-Imp-RF-comtrade.csv" загружен', Sys.time()), 
+        file = './data/download.log', append = T)
+}
+# читаем данные из загруженного .csv во фрейм, если он ещё не существует
+if (!exists('DT.import')){
+  DT.import <- data.table(read.csv('./data/040510-Imp-RF-comtrade.csv', 
+                                   stringsAsFactors = F))
+}
+# предварительный просмотр
+dim(DT.import)            # размерность таблицы
+str(DT.import)            # структура (характеристики столбцов)
+DT.import          # удобный просмотр объекта data.table
+
+```
+пропуски необходимо заменить на модельные значения, Netweight.kg.model
+регрессия на логарифмах
+```{r, echo = T, message = F, warning = F}
+x <- DT.import$Trade.Value.USD
+y <- DT.import$Netweight.kg
+
+
+y[y == 0] <- NA
+fit.log <- lm(log(y) ~ log(x))
+summary(fit.log) 
+R.sq.log <- summary(fit.log)$r.squared 
+# новый столбец, в котором будут заполнены пропуски
+DT.import[, Netweight.kg.model := Netweight.kg]
+# прогноз по модели на логарифмах сохраняем как вектор
+y.model.log <- predict(fit.log,
+                       newdata = data.frame(x = NA))
+# пересчитываем в исходные единицы измерения y
+y.model <- exp(y.model.log)
+# заполняем пропуски модельными значениями
+DT.import[is.na(Netweight.kg.model),
+          Netweight.kg.model := round(y.model, 0)]
+```
+
+ВВедем новый столбец по факту вхождения 
+1) СНГ без Белоруссии и Казахстана;
+2) Таможенный союз России, Белоруссии, Казахстана;
+3) другие страны.
+```{r, echo = T, message = F, warning = F}
+
+Rep <- DT.import$Reporter
+head(Rep)
+str(Rep)
+Coun.1 <- "Kyrgyzstan"
+Coun.2 <- "Armenia"
+Coun.3 <- "Azerbaijan"
+Coun.4 <- "Belarus"
+Coun.5 <- "Russian Federation"
+
+for (i in 1:length(Rep)){
+   if(setequal(Rep[i],Coun.1)|setequal(Rep[i],Coun.3)|setequal(Rep[i],Coun.2) )
+   {
+      Rep[i] <- 1
+   }
+   else if(setequal(Rep[i],Coun.1)|setequal(Rep[i],Coun.4)|setequal(Rep[i],Coun.5) )
+   {
+      Rep[i] <- 2
+   }
+   else{
+      Rep[i] <- 3
+   }
+}
+DT.import[, Rep := as.double(Rep)]
+```
+
+Аналогично разобьем на даты 
+```{r}
+
+fact <- DT.import$Period
+head(fact)
+str(fact)
+DT.import$Period[500]
+for (i in 1:length(fact)){
+   if((DT.import$Period[i]>=201001) &(DT.import$Period[i]<=201408))
+   {
+      fact[i] <- 1
+   }
+   else if(DT.import$Period[i]>=201409 & DT.import$Period[i]<=201812)
+   {
+      fact[i] <- 2
+   }
+   else 
+   {
+      fact[i] <- 0
+   }
+
+}
+
+head(fact)
+DT.import[, fact := as.double(fact)]
+```
+
+Дальше используем пакет base для постройки коробчатых диаграмм 
+```{r}
+
+png('Pic-01.png', width = 500, height = 500)
+boxplot(DT.import$Netweight.kg ~ as.factor(DT.import$Year), 
+      
+        subset = Rep == 1, col = "red",
+        xlab = 'Год', 
+        ylab = 'Суммарная масса поставок', yaxs = "i")
+boxplot(DT.import$Netweight.kg ~ as.factor(DT.import$Year), 
+        add = TRUE,
+        
+        subset = Rep == 2, col = "green")
+boxplot(DT.import$Netweight.kg ~ as.factor(DT.import$Year), 
+        add = TRUE,
+        subset = Rep == 3, col = "blue")
+dev.off()
+
+```
+ Используя пакет «lattice»
+```{r}
+DT.import[, SNG := factor(Rep, levels = c(1,2,3), 
+                          labels = c(' СНГ без Белоруссии и Казахстана', 
+                                     ' Таможенный союз России, Белоруссии, Казахстана','другие страны'))]
+DT.import[, Data := factor(fact, levels = c(1,2), 
+                          labels = c('с 2010 по август 2014 года', 
+           'с сентября 2014 по декабрь 2018 года'))]
+png('Pic-02.png', width = 500, height = 500)
+bwplot( Netweight.kg ~  as.factor(Year)|SNG* Data , data = DT.import, 
+        xlab = 'Год', 
+        ylab = 'Суммарная масса поставок')
+dev.off()
+```
+ Используя пакет «ggplot2»
+```{r}
+png('Pic-03.png', width = 500, height = 500)
+gp <- ggplot(data = DT.import, 
+             aes(x = as.factor(Year), 
+                 y = Netweight.kg, 
+                 color = SNG))
+gp <- gp + geom_boxplot()
+gp <- gp + facet_grid(. ~ Data)
+gp <- gp + xlab('Год')
+gp <- gp + ylab('Суммарная масса поставок')
+gp
+dev.off()
+```
+ 
+
+
