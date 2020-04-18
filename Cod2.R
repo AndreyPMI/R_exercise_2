@@ -153,22 +153,28 @@ DT.import[, Rep := as.double(Rep)]
 (?boxplot())
 png('Pic-01.png', width = 500, height = 500)
 boxplot(DT.import$Netweight.kg ~ as.factor(DT.import$Year), 
-      
+        boxwex = 0.3, at = 1:10 - 0.2,
         subset = Rep == 1, col = "red",
         xlab = 'Год', 
         ylab = 'Суммарная масса поставок', yaxs = "i")
 boxplot(DT.import$Netweight.kg ~ as.factor(DT.import$Year), 
         add = TRUE,
-        
+        boxwex = 0.3, at = 1:10 - 0.2,
         subset = Rep == 2, col = "green")
 boxplot(DT.import$Netweight.kg ~ as.factor(DT.import$Year), 
         add = TRUE,
+        boxwex = 0.3, at = 1:10 - 0.2,
         subset = Rep == 3, col = "blue")
+legend('topright', legend = c(' СНГ', 
+                              ' Таможенный союз ','другие страны'),fill=(c("red","green","blue")))
 dev.off()
 
 
 #########################################
+#########################################
 
+
+#########################################
 ##################
 DT.import[, SNG := factor(Rep, levels = c(1,2,3), 
                           labels = c(' СНГ без Белоруссии и Казахстана', 
@@ -181,15 +187,25 @@ bwplot( Netweight.kg ~  as.factor(Year)|SNG* Data , data = DT.import,
         xlab = 'Год', 
         ylab = 'Суммарная масса поставок')
 dev.off()
+
 ##########################
 png('Pic-03.png', width = 500, height = 500)
-gp <- ggplot(data = DT.import, 
+DT.import2 <- DT.import
+DT.import2 <- filter(DT.import2, fact==1|fact==2)
+gp <- ggplot(data = DT.import2, 
              aes(x = as.factor(Year), 
                  y = Netweight.kg, 
                  color = SNG))
 gp <- gp + geom_boxplot()
-gp <- gp + facet_grid(. ~ Data)
+
+
+
+?facet_grid
+gp <- gp + facet_grid( .~ Data)
 gp <- gp + xlab('Год')
 gp <- gp + ylab('Суммарная масса поставок')
 gp
 dev.off()
+
+##############
+

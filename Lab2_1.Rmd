@@ -133,6 +133,7 @@ DT.import[, fact := as.double(fact)]
 ```{r}
 
 png('Pic-01.png', width = 500, height = 500)
+
 boxplot(DT.import$Netweight.kg ~ as.factor(DT.import$Year), 
       
         subset = Rep == 1, col = "red",
@@ -145,6 +146,8 @@ boxplot(DT.import$Netweight.kg ~ as.factor(DT.import$Year),
 boxplot(DT.import$Netweight.kg ~ as.factor(DT.import$Year), 
         add = TRUE,
         subset = Rep == 3, col = "blue")
+legend('topright', legend = c(' СНГ', 
+                              ' Таможенный союз ','другие страны'),fill=(c("red","green","blue")))
 dev.off()
 
 ```
@@ -165,12 +168,18 @@ dev.off()
  Используя пакет «ggplot2»
 ```{r}
 png('Pic-03.png', width = 500, height = 500)
-gp <- ggplot(data = DT.import, 
+DT.import2 <- DT.import
+DT.import2 <- filter(DT.import2, fact==1|fact==2)
+gp <- ggplot(data = DT.import2, 
              aes(x = as.factor(Year), 
                  y = Netweight.kg, 
                  color = SNG))
 gp <- gp + geom_boxplot()
-gp <- gp + facet_grid(. ~ Data)
+
+
+
+?facet_grid
+gp <- gp + facet_grid( .~ Data)
 gp <- gp + xlab('Год')
 gp <- gp + ylab('Суммарная масса поставок')
 gp
